@@ -1,5 +1,5 @@
 ---
-description: Write a step-by-step plan of action from reviewed Gemini analysis into .claude/context/Proposals/Unimplemented
+description: Write a step-by-step plan of action from reviewed analysis into .claude/context/Proposals/Unimplemented
 argument-hint: "[reviewed report, finding, or topic]"
 ---
 

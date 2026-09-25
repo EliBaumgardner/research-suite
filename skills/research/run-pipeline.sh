@@ -65,7 +65,7 @@ case "$analyst" in
         fi
         ;;
     *)
-        log "unknown analyst \"$analyst\" under [suite.pipeline] - use agy, gemini or claude"
+        log "unknown analysis agent \"$analyst\" under [suite.pipeline] - use agy, gemini or claude"
         fail "configuration"
         ;;
 esac
@@ -113,7 +113,7 @@ if ! grep -q . "$analyze_prompt"; then
     fail "analyze"
 fi
 
-log "stage 1/3: analysis by $analyst on ${analyst_model:-its default model}"
+log "stage 1/3: analysis agent $analyst on ${analyst_model:-its default model}"
 "${analyst_command[@]}" -p "$(cat "$analyze_prompt")" > "$run_dir/analyze.log" 2>&1 \
     || fail "analyze ($analyst exited $?, see analyze.log)"
 
@@ -131,7 +131,7 @@ log "report: $report"
 git status --porcelain > "$run_dir/git-after-analyze.txt"
 outside_writes_since "$run_dir/analysis.marker" > "$run_dir/outside-writes.txt"
 if ! cmp -s "$run_dir/git-before.txt" "$run_dir/git-after-analyze.txt" || [ -s "$run_dir/outside-writes.txt" ]; then
-    log "the analyst wrote outside $unreviewed; nothing was reverted"
+    log "the analysis agent wrote outside $unreviewed; nothing was reverted"
     diff "$run_dir/git-before.txt" "$run_dir/git-after-analyze.txt" >> "$summary"
     cat "$run_dir/outside-writes.txt" >> "$summary"
     fail "analyze guard"

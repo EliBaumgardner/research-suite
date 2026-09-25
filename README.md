@@ -3,7 +3,7 @@
 A Claude Code plugin for C++ projects:
 
 - **Gates**: hooks that check every edit against a set of design and readability rules, and a `-deep` mode that makes Claude state and defend a systematic pass over the code it touches.
-- **The research pipeline**: Gemini audits the codebase or researches outside it, Claude reviews the report like an academic advisor, turns what survives into a step-by-step proposal, and implements an approved proposal.
+- **The research pipeline**: an analysis agent (Antigravity, Gemini CLI or Claude, your choice) audits the codebase or researches outside it, Claude reviews the report like an academic advisor, turns what survives into a step-by-step proposal, and implements an approved proposal.
 
 The plugin holds no project's data. Every project keeps its own reports, proposals, config and rules; the plugin creates the folders for them.
 
@@ -22,7 +22,7 @@ To work on the plugin from a local clone, add the clone as the marketplace inste
 
 - `jq` and `python3` (3.11 or later)
 - [`refactor-tools`](https://github.com/EliBaumgardner/refactor-tools): clone it and `pip install -e refactor-tools` (its README has the LLVM requirements). The gates read the project config through it, use its C++ scanner, and call `refactor.smell` and `refactor.tidy`.
-- the analysis tool you configure (`agy` by default, or `gemini` or `claude`), and the `claude` CLI for the review and proposal stages
+- the analysis agent you configure (`agy` by default, or `gemini` or `claude`), and the `claude` CLI for the review and proposal stages
 
 ## Commands
 
@@ -30,7 +30,7 @@ To work on the plugin from a local clone, add the clone as the marketplace inste
 |---|---|
 | `/research-suite:init` | Creates the context folders, `.claude/refactor.toml` and the analyst profile in this project, then helps fill them in |
 | `/research-suite:research <subject>` | Runs analyze → review → propose in the background |
-| `/research-suite:review [report]` | Reviews one Gemini report and files it under `Reviewed/` |
+| `/research-suite:review [report]` | Reviews one analysis report and files it under `Reviewed/` |
 | `/research-suite:propose [report or topic]` | Writes a proposal from reviewed findings |
 | `/research-suite:implement [proposal]` | Verifies an approved proposal, builds it step by step, files it under `Implemented/` |
 
@@ -57,7 +57,7 @@ gemini/              the analyst brief, the analysis procedure and the prompt te
 .gemini/GEMINI.md           the analyst profile: frameworks, invariants, comparable systems
 .claude/context/
 ├── GeminiAnalysis/
-│   ├── Unreviewed/{ProgramAudits,ResearchReports}/   Gemini writes here
+│   ├── Unreviewed/{ProgramAudits,ResearchReports}/   the analysis agent writes here
 │   └── Reviewed/{ProgramAudits,ResearchReports}/     review writes here
 └── Proposals/
     ├── Unimplemented/                                propose writes here
@@ -80,7 +80,7 @@ analyst_profile    = ".gemini/GEMINI.md"
 issues_file        = ".claude/notes/ongoing-issues.md"
 
 [suite.pipeline]
-analyst       = "agy"                 # who writes the report: agy (Antigravity), gemini (Gemini CLI) or claude
+analyst       = "agy"                 # the analysis agent: agy (Antigravity), gemini (Gemini CLI) or claude
 analyst_model = "gemini-3.1-pro-high" # empty: the tool's own default; agy defaults to gemini-3.1-pro-high
 review_model  = ""                    # model for the review stage; empty: the claude CLI default
 propose_model = ""                    # model for the proposal stage; empty: the claude CLI default

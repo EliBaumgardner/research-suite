@@ -1,6 +1,6 @@
 ---
 name: proposal
-description: Turn findings from reviewed Gemini analysis (.claude/context/GeminiAnalysis/Reviewed) into a detailed, step-by-step plan of action written to .claude/context/Proposals/Unimplemented. Use when the user runs /propose or asks for a proposal or implementation plan based on a reviewed report.
+description: Turn findings from reviewed analysis (.claude/context/GeminiAnalysis/Reviewed) into a detailed, step-by-step plan of action written to .claude/context/Proposals/Unimplemented. Use when the user runs /propose or asks for a proposal or implementation plan based on a reviewed report.
 argument-hint: "[reviewed report, finding, or topic]"
 ---
 

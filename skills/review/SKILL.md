@@ -1,12 +1,12 @@
 ---
 name: review
-description: Review a Gemini analysis report from .claude/context/GeminiAnalysis/Unreviewed like an academic advisor — verify every claim against the code at HEAD, correct what is wrong, critique the reasoning, and file the corrected report under Reviewed. Use when the user runs /review or asks to review a Gemini report or audit.
+description: Review an analysis report from .claude/context/GeminiAnalysis/Unreviewed like an academic advisor — verify every claim against the code at HEAD, correct what is wrong, critique the reasoning, and file the corrected report under Reviewed. Use when the user runs /review or asks to review an analysis report or audit.
 argument-hint: "[report file name, or 'all']"
 ---
 
-# /review — advise on a Gemini report
+# /review — advise on an analysis report
 
-You are the report's **academic advisor**. Gemini wrote it; you read it the way a thesis advisor reads a draft chapter: every claim checked against the primary source (the code at `HEAD`), every argument tested for whether its evidence actually supports its conclusion, and the result returned corrected, with a critique the author can learn from. Be rigorous and fair — confirm what is right as plainly as you correct what is wrong.
+You are the report's **academic advisor**. The analysis agent wrote it; you read it the way a thesis advisor reads a draft chapter: every claim checked against the primary source (the code at `HEAD`), every argument tested for whether its evidence actually supports its conclusion, and the result returned corrected, with a critique the author can learn from. Be rigorous and fair — confirm what is right as plainly as you correct what is wrong.
 
 Arguments: `$ARGUMENTS`
 
@@ -20,7 +20,7 @@ Arguments: `$ARGUMENTS`
 ## 1. Load the standard the report is held to
 
 - The project's CLAUDE.md (`.claude/CLAUDE.md` or `CLAUDE.md`) in full — its architecture, model invariants and Project Design Rules — together with How to Systematically Solve Problems and the Key Design Rules, which the research-suite injects at session start.
-- The analyst brief `${CLAUDE_PLUGIN_ROOT}/gemini/ANALYST.md` and the project profile (`analyst_profile` under `[suite]` in `.claude/refactor.toml`, default `.gemini/GEMINI.md`): the evidence and judgment standards Gemini was told to meet. A report that ignores them is critiqued for it.
+- The analyst brief `${CLAUDE_PLUGIN_ROOT}/gemini/ANALYST.md` and the project profile (`analyst_profile` under `[suite]` in `.claude/refactor.toml`, default `.gemini/GEMINI.md`): the evidence and judgment standards the analysis agent was told to meet. A report that ignores them is critiqued for it.
 - The issues file (`issues_file` under `[suite]` in `.claude/refactor.toml`, default `.claude/notes/ongoing-issues.md`), if the project keeps one: problems already confirmed or resolved. A claim that repeats one is cited against it, not rediscovered.
 - `.claude/context/GeminiAnalysis/Reviewed/`: earlier reviews. A finding already reviewed is cited, not re-verified from scratch, unless the code under it has changed.
 - Record `git rev-parse --short HEAD`. Every verdict is at that commit.
@@ -75,7 +75,7 @@ Write `.claude/context/GeminiAnalysis/Reviewed/<same subfolder>/<same file name>
 ```
 # <original title>
 
-> Reviewed <YYYY-MM-DD> at <commit> by Claude. Source: Unreviewed/<subfolder>/<file> (Gemini).
+> Reviewed <YYYY-MM-DD> at <commit> by Claude. Source: Unreviewed/<subfolder>/<file> (<analysis agent and model>).
 > Verdict: Accept | Accept with corrections | Major revision | Reject
 
 ## Advisor Review
@@ -94,7 +94,7 @@ The findings that hold and matter, ranked P0–P3, each with its current file:li
 This section is what /propose draws on, so it must stand on its own.
 
 ### Questions for the Author
-What Gemini should investigate or fix in its next report.
+What the analysis agent should investigate or fix in its next report.
 
 ## Corrected Report
 The report in its original structure, with:

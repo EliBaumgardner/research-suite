@@ -1,6 +1,6 @@
 ---
 name: research
-description: Run the whole research pipeline on one subject in the background — Gemini writes the audit or research report (/analyze), Claude reviews it (/review), then turns what survives into a proposal (/propose). Use when the user runs /research <subject>.
+description: Run the whole research pipeline on one subject in the background — the analysis agent writes the audit or research report, Claude reviews it (/review), then turns what survives into a proposal (/propose). Use when the user runs /research <subject>.
 argument-hint: "<subject>"
 disable-model-invocation: true
 allowed-tools: Bash(*/skills/research/run-pipeline.sh *)
@@ -12,11 +12,11 @@ Subject: `$ARGUMENTS`
 
 This skill conducts the three stages of the research-suite pipeline (see the plugin's README). It does not do any stage itself. `run-pipeline.sh`, next to this file, runs each stage as its own process, so each one reads only what the stage before it filed:
 
-1. The analyst (`analyst` and `analyst_model` under `[suite.pipeline]` in `.claude/refactor.toml`; by default `agy` on `gemini-3.1-pro-high`) runs the prompt from the plugin's `gemini/analyze.toml`, with the subject, the analyst brief (`gemini/ANALYST.md`), the project profile (`analyst_profile` under `[suite]` in `.claude/refactor.toml`, default `.gemini/GEMINI.md`) and the analysis skill (`gemini/analysis/SKILL.md`) filled in, since the analyst tools do not read `.toml` commands the same way, and writes one new report into `GeminiAnalysis/Unreviewed/`. The script creates any missing context folder first, and stops if the project has no profile.
+1. The analysis agent (`analyst` and `analyst_model` under `[suite.pipeline]` in `.claude/refactor.toml`; by default `agy` on `gemini-3.1-pro-high`) runs the prompt from the plugin's `gemini/analyze.toml`, with the subject, the analyst brief (`gemini/ANALYST.md`), the project profile (`analyst_profile` under `[suite]` in `.claude/refactor.toml`, default `.gemini/GEMINI.md`) and the analysis skill (`gemini/analysis/SKILL.md`) filled in, since the analyst tools do not read `.toml` commands the same way, and writes one new report into `GeminiAnalysis/Unreviewed/`. The script creates any missing context folder first, and stops if the project has no profile.
 2. `claude -p "/research-suite:review <that report>"` on `review_model` — files the reviewed report in `GeminiAnalysis/Reviewed/` and deletes the original.
 3. `claude -p "/research-suite:propose <the reviewed report>"` on `propose_model` — writes the proposal(s) into `Proposals/Unimplemented/`.
 
-Between stages the script checks that the stage wrote where it should and nowhere else. `git status` must be unchanged, and the analyst may touch nothing under `.claude/` or `.gemini/` outside `Unreviewed/`. On any failure it stops and reverts nothing. One subject per run; the pipeline never loops.
+Between stages the script checks that the stage wrote where it should and nowhere else. `git status` must be unchanged, and the analysis agent may touch nothing under `.claude/` or `.gemini/` outside `Unreviewed/`. On any failure it stops and reverts nothing. One subject per run; the pipeline never loops.
 
 ## 1. Launch
 
