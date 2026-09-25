@@ -21,7 +21,7 @@ To work on the plugin from a local clone, add the clone as the marketplace inste
 ## Requirements
 
 - `jq` and `python3` (3.11 or later)
-- [`refactor-tools`](https://github.com/EliBaumgardner/refactor-tools), installed with `pip install -e`. The gates read the project config through it, use its C++ scanner, and call `refactor.smell` and `refactor.tidy`.
+- [`refactor-tools`](https://github.com/EliBaumgardner/refactor-tools): clone it and `pip install -e refactor-tools` (its README has the LLVM requirements). The gates read the project config through it, use its C++ scanner, and call `refactor.smell` and `refactor.tidy`.
 - `agy` (Antigravity) for the analysis stage, and the `claude` CLI for the review and proposal stages
 
 ## Commands
