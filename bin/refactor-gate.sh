@@ -2,8 +2,12 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-cd "$root" 2>/dev/null || exit 0
+. "$here/../lib/project.sh"
+
+build_name="$build_target"
+if [ -z "$build_name" ]; then
+    build_name="the project's build target"
+fi
 
 payload=$(cat)
 
@@ -11,7 +15,7 @@ target=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""' 2>/dev/nul
 [ -n "$target" ] || exit 0
 target="${target#"$root"/}"
 case "$target" in
-    Source/*.cpp|Source/*.h) ;;
+    "$sources"/*.cpp|"$sources"/*.h) ;;
     *) exit 0 ;;
 esac
 [ -f "$target" ] || exit 0
@@ -60,7 +64,7 @@ if [ -n "$added_def" ] && [ -z "$removed_def" ]; then
 Use the tool that performs it:
   refactor.encap ${target}:<start>-<end> <name>
 
-It computes the parameters and return value from the data flow, inherits the enclosing function's const/noexcept, places the declaration in the matching access section, builds SequenceTree_Standalone, and restores every file if the build fails. It refuses rather than guessing when a return crosses the boundary, more than one value stays live, or a type is auto.
+It computes the parameters and return value from the data flow, inherits the enclosing function's const/noexcept, places the declaration in the matching access section, builds ${build_name}, and restores every file if the build fails. It refuses rather than guessing when a return crosses the boundary, more than one value stays live, or a type is auto.
 
 If this really is new code that happens to resemble nearby lines, say so and re-issue the edit; the gate only inspects one call at a time."
     fi
@@ -70,7 +74,7 @@ if [ -n "$removed_def" ]; then
     name=$(printf '%s' "$old" | sed -nE "s/$defsig.*/\\2/p" | head -1)
     cls=$(printf '%s' "$old" | sed -nE "s/$defsig.*/\\1/p" | head -1)
     if [ -n "$name" ] && ! printf '%s' "$new" | grep -qE "[^A-Za-z0-9_]${name}[[:space:]]*\(" ; then
-        callers=$(grep -rnE "\b${name}[[:space:]]*\(" Source --include='*.cpp' 2>/dev/null \
+        callers=$(grep -rnE "\b${name}[[:space:]]*\(" "$sources" --include='*.cpp' 2>/dev/null \
                   | while IFS= read -r hit; do
                         text=$(printf '%s' "$hit" | cut -d: -f3- | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
                         if [ -n "$text" ] && ! printf '%s' "$old" | grep -qF -- "$text"; then
@@ -83,7 +87,7 @@ if [ -n "$removed_def" ]; then
 Use the tool that performs it:
   refactor.decap ${cls}::${name}
 
-It rewrites every call site, substitutes arguments for parameters, prefixes the receiver onto member access for cross-class sites, removes the declaration, builds SequenceTree_Standalone, and restores every file if the build fails. It refuses rather than guessing when the function is virtual, its address is taken, its name is ambiguous, an argument would be evaluated more than once, or the body would reach a non-public member from another class - that last one names the member you would have to make public.
+It rewrites every call site, substitutes arguments for parameters, prefixes the receiver onto member access for cross-class sites, removes the declaration, builds ${build_name}, and restores every file if the build fails. It refuses rather than guessing when the function is virtual, its address is taken, its name is ambiguous, an argument would be evaluated more than once, or the body would reach a non-public member from another class - that last one names the member you would have to make public.
 
 If you meant to delete the function outright, remove its call sites first."
         fi

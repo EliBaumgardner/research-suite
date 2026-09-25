@@ -2,9 +2,7 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scanner="$(dirname "$(python3 -c 'import refactor; print(refactor.__file__)' 2>/dev/null)")/cxx-scan.awk"
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-cd "$root" 2>/dev/null || exit 0
+. "$here/../lib/project.sh"
 
 mode="diff"
 target=""
@@ -41,15 +39,15 @@ if [ "$mode" = "post-tool" ]; then
     fi
     target="${target#"$root"/}"
     case "$target" in
-        Source/*.cpp|Source/*.h) ;;
+        "$sources"/*.cpp|"$sources"/*.h) ;;
         *) exit 0 ;;
     esac
 fi
 
 case "$mode" in
     all)
-        files=$(find Source -type f \( -name '*.cpp' -o -name '*.h' \) | sort)
-        scope="all Source files"
+        files=$(find "$sources" -type f \( -name '*.cpp' -o -name '*.h' \) | sort)
+        scope="all $sources files"
         ;;
     file|post-tool)
         if [ ! -f "$target" ]; then
@@ -59,8 +57,8 @@ case "$mode" in
         scope="$target"
         ;;
     *)
-        files=$( { git diff --name-only HEAD -- 'Source/*.cpp' 'Source/*.h' 2>/dev/null
-                   git ls-files --others --exclude-standard -- 'Source/*.cpp' 'Source/*.h' 2>/dev/null; } \
+        files=$( { git diff --name-only HEAD -- "$sources/*.cpp" "$sources/*.h" 2>/dev/null
+                   git ls-files --others --exclude-standard -- "$sources/*.cpp" "$sources/*.h" 2>/dev/null; } \
                  | sort -u | while read -r candidate; do
                        if [ -f "$candidate" ]; then echo "$candidate"; fi
                    done )
@@ -72,7 +70,7 @@ if [ -z "$files" ]; then
     if [ "$mode" = "post-tool" ] || [ "$mode" = "stop" ]; then
         exit 0
     fi
-    echo "design-rules: no changed Source files to check"
+    echo "design-rules: no changed $sources files to check"
     exit 0
 fi
 
@@ -82,7 +80,7 @@ trap 'rm -rf "$work"' EXIT
 addedmap="$work/added"
 : > "$addedmap"
 
-git diff -U0 -M HEAD -- 'Source/*.cpp' 'Source/*.h' 2>/dev/null | awk '
+git diff -U0 -M HEAD -- "$sources/*.cpp" "$sources/*.h" 2>/dev/null | awk '
     /^\+\+\+ b\// { F = substr($0, 7); next }
     /^@@/ {
         if (F != "" && match($0, /\+[0-9]+(,[0-9]+)?/)) {
@@ -252,6 +250,9 @@ report=""
 emit() {
     local rule="$1"
     local hits="$2"
+    if printf '%s\n' "$disabled_rules" | grep -qxF -- "$rule"; then
+        return
+    fi
     if [ -n "$hits" ]; then
         violations=$((violations + 1))
         report="${report}"$'\n'"[VIOLATION] ${rule}"$'\n'"${hits}"$'\n'
@@ -324,22 +325,6 @@ tidy_hits() {
 brace_hits=$(printf '%s\n%s\n' "$brace_hits" "$(tidy_hits "Always use {} for blocks")" \
     | grep -v '^$' | sort -u)
 
-core_purpose_api="
-Source/Audio/AudioUIBridge.h:highlightNode
-Source/Audio/AudioUIBridge.h:clearAllHighlights
-Source/Audio/AudioUIBridge.h:pushProgress
-Source/Audio/AudioUIBridge.h:pushArrowReset
-Source/Audio/AudioUIBridge.h:pushCount
-Source/Audio/AudioUIBridge.h:hasPendingCommands
-Source/Audio/AudioUIBridge.h:primaryTrail
-Source/Audio/AudioUIBridge.h:modulatorTrail
-Source/Audio/AudioUIBridge.h:danglingArrowKey
-Source/Audio/AudioUIBridge.h:hasPending
-Source/Audio/TraversalPool.h:entries
-Source/Plugin/AudioSnapshotPublisher.h:beginBlock
-Source/Plugin/AudioSnapshotPublisher.h:endBlock
-"
-
 smell_out=$(refactor.smell --porcelain $files 2>"$work/smell.err")
 smell_status=$?
 smell_skipped=""
@@ -370,51 +355,6 @@ tiny_hits=$(smell_rows wrappers H | only_added \
             | awk '{ sub(/ \|\|CMD\|\| /, "\n      "); print }')
 tiny_exempt=$(smell_rows wrappers X | only_added)
 accessor_hits=$(smell_rows accessors H | only_added)
-
-audiofiles=$(echo "$files" | tr ' ' '\n' | grep -E '^Source/Audio/' || true)
-
-alloc_hits=""
-uimutate_hits=""
-boundary_hits=""
-
-if [ -n "$audiofiles" ]; then
-    alloc_hits=$(echo "$audiofiles" | xargs awk -F'\t' '
-        FNR == NR { if ($1 == "F") { for (l = $3; l <= $4; l++) { fn[$2 ":" l] = $8 } } ; next }
-        {
-            here = fn[FILENAME ":" FNR]
-            if (here == "") { next }
-            if (here ~ /^(prepare|prepareToPlay|reserve|setup|releaseResources)/) { next }
-            line = $0
-            sub(/\/\/.*$/, "", line)
-            if (line ~ /(^|[^A-Za-z0-9_])(new|delete)[[:space:]]/ \
-             || line ~ /make_unique|make_shared|malloc\(|calloc\(|realloc\(|free\(/ \
-             || line ~ /(^|[^A-Za-z0-9_:])(std::)?(string|vector|map|set)[[:space:]]*<[^>]*>[[:space:]]+[A-Za-z_]/ \
-             || line ~ /juce::String[[:space:]]+[A-Za-z_]/) {
-                printf "%s:%d:%s\n", FILENAME, FNR, $0
-            }
-        }
-    ' "$funcs" 2>/dev/null | only_added)
-
-    uimutate_hits=$(echo "$audiofiles" | xargs awk '
-        { line = $0
-          sub(/\/\/.*$/, "", line)
-          if (line ~ /juce::Component|NodeCanvas|->repaint\(|\.repaint\(|setBounds\(|setVisible\(|LookAndFeel/) {
-              printf "%s:%d:%s\n", FILENAME, FNR, $0
-          } }
-    ' 2>/dev/null | only_added)
-
-    boundary_hits=$(echo "$audiofiles" | xargs awk '
-        { line = $0
-          sub(/\/\/.*$/, "", line)
-          if (line ~ /juce::ValueTree|GraphState|ValueTreeIdentifiers/) {
-              printf "%s:%d:%s\n", FILENAME, FNR, $0
-          } }
-    ' 2>/dev/null | only_added)
-fi
-
-kept_small_classes="
-Source/Graph/RTData.h:NodeMap
-"
 
 smallclass_hits=$(awk -F'\t' '
     $4 == 1 && $7 == 0 && $9 == 0 && $6 == 0 && $5 > 0 && $5 == $8 {
@@ -448,29 +388,50 @@ enum_hits=$(echo "$files" | xargs awk '
     }
 ' 2>/dev/null | only_added)
 
-staticctx_hits=$(echo "$files" | xargs grep -HnE '^[[:space:]]*(static|extern)?[[:space:]]*[A-Za-z_][A-Za-z0-9_:<>]*[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[^=]*ApplicationContext' 2>/dev/null | only_added)
-
 emit "Never use inline functions"                                        "$inline_hits"
 emit "Never use ternary operators"                                       "$ternary_hits"
 emit "This project uses no code comments"                                "$comment_hits"
 emit "Always use {} for blocks"                                          "$brace_hits"
 emit "Never write 1-2 line functions, wrappers, or single-operation functions" "$tiny_hits"
 emit "Anything that needs a getter belongs in public scope"              "$accessor_hits"
-emit "Never allocate or free on the audio thread"                        "$alloc_hits"
-emit "Never touch UI components from the audio thread"                   "$uimutate_hits"
-emit "Only RTData structs and RTScript cross the audio boundary"         "$boundary_hits"
-emit "ApplicationContext is not valid at static init time"               "$staticctx_hits"
+checked_labels=""
+while IFS=$'\x1f' read -r check_rule check_label check_paths check_in_functions check_skip check_pattern; do
+    if [ -z "$check_rule" ]; then
+        continue
+    fi
+    checked_labels="${checked_labels}, ${check_label}"
+    check_files=$(echo "$files" | tr ' ' '\n' | grep -E "^${check_paths}" || true)
+    if [ -z "$check_files" ]; then
+        continue
+    fi
+    check_hits=$(echo "$check_files" | PATTERN="$check_pattern" SKIP="$check_skip" INFUNC="$check_in_functions" xargs awk -F'\t' '
+        FILENAME == ARGV[1] { if ($1 == "F") { for (l = $3; l <= $4; l++) { fn[$2 ":" l] = $8 } } ; next }
+        {
+            if (ENVIRON["INFUNC"] == "1") {
+                owner = fn[FILENAME ":" FNR]
+                if (owner == "") { next }
+                if (ENVIRON["SKIP"] != "" && owner ~ ENVIRON["SKIP"]) { next }
+            }
+            line = $0
+            sub(/\/\/.*$/, "", line)
+            if (line ~ ENVIRON["PATTERN"]) { printf "%s:%d:%s\n", FILENAME, FNR, $0 }
+        }
+    ' "$funcs" 2>/dev/null | only_added)
+    emit "$check_rule" "$check_hits"
+done <<< "$project_checks"
 emit "Very small classes should be dissolved, not kept"                  "$smallclass_hits"
 emit "Named states and kinds belong in an enum, not a bool or a bare int" "$enum_hits"
 
-checked="inline, ternaries, comments, braces (text plus clang-tidy AST), forwarding-call wrappers (clang AST), very small classes, accessors over non-public fields (clang AST), audio-thread allocation, audio-thread UI access, audio boundary types, static-init ApplicationContext, modes and kinds held outside an enum"
+checked="inline, ternaries, comments, braces (text plus clang-tidy AST), forwarding-call wrappers (clang AST), very small classes, accessors over non-public fields (clang AST)${checked_labels}, modes and kinds held outside an enum"
 unchecked="Code fits the class's intended purpose / single area of concern
-Avoid encapsulation on very small segments of code which repeat
-Whether a push_back stays inside its reserved capacity (the allocation check cannot see capacity)
-Per-block scratch state lives in reserved member vectors, not locals
+Avoid encapsulation on very small segments of code which repeat"
+if [ -n "$project_unchecked" ]; then
+    unchecked="${unchecked}"$'\n'"${project_unchecked}"
+fi
+unchecked="${unchecked}
 Prefer declaring an unused variable over deleting one that represents the class's functionality
 Whether a short function qualifies for the \"states a larger process\" exception - ASK, do not self-certify
-Whether a small function is the class's core purpose - if so it belongs in core_purpose_api in design-rules.sh, and ASK before adding it
+Whether a small function is the class's core purpose - if so it belongs in core_purpose_api under [suite] in .claude/refactor.toml, and ASK before adding it
 Whether a class small enough to flag has a reason to exist anyway - ASK before keeping it
 Whether several bools in one class are really one enum state - the enum check only sees a field named like a mode, so a cluster such as brushStrokeActive/brushErase passes it
 Whether a state named in neither the type nor the field name still has two or more named alternatives and so owes an enum"
@@ -480,7 +441,7 @@ if [ -n "$smell_skipped" ]; then
 fi
 
 if [ -n "$tiny_exempt" ]; then
-    report="${report}"$'\n'"[EXEMPT] Small functions declared as their class's core purpose (core_purpose_api in design-rules.sh)"$'\n'"$(printf '%s\n' "$tiny_exempt" | sed 's/^/  /')"$'\n'
+    report="${report}"$'\n'"[EXEMPT] Small functions declared as their class's core purpose (core_purpose_api in .claude/refactor.toml)"$'\n'"$(printf '%s\n' "$tiny_exempt" | sed 's/^/  /')"$'\n'
 fi
 
 coverage="design-rules: machine-checked - ${checked}"$'\n'

@@ -2,8 +2,7 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-cd "$root" 2>/dev/null || exit 0
+. "$here/../lib/project.sh"
 
 payload=$(cat)
 prompt=$(printf '%s' "$payload" | jq -r '.prompt // ""' 2>/dev/null)
@@ -36,7 +35,7 @@ fi
 check=$("$here/design-rules.sh" 2>&1)
 
 clean=0
-if printf '%s' "$check" | grep -qE 'design-rules: clean|no changed Source files'; then
+if printf '%s' "$check" | grep -qE 'design-rules: clean|design-rules: no changed .* files to check'; then
     clean=1
 fi
 
@@ -46,8 +45,8 @@ fi
 
 context=""
 
-if [ "$deep" -eq 1 ] || [ "$first" -eq 1 ]; then
-    rules=$(awk '/^### How to Systematically Solve Problems/, 0' .claude/CLAUDE.md 2>/dev/null)
+if [ "$deep" -eq 1 ]; then
+    rules=$("$here/session-rules.sh" 2>/dev/null)
     if [ -n "$rules" ]; then
         context="${rules}"$'\n\n---\n\n'
     fi
@@ -60,12 +59,12 @@ context="${context}  no function over 80 lines - when one is, lift out a block o
 context="${context}  one class per .cpp - do not implement a second class there unless its header declares it"$'\n'
 context="${context}  define members in the order the header declares them, and group member variables apart from member functions"$'\n'
 context="${context}  one public: and one private: section per class - never reopen an access section you already closed"$'\n'
-context="${context}Run ${here}/readability.sh --file <path> on any file you are asked to analyse, and report what it finds alongside your own read of the naming."$'\n\n'
+context="${context}Run readability.sh --file <path> on any file you are asked to analyse, and report what it finds alongside your own read of the naming."$'\n\n'
 
 if [ "$deep" -eq 1 ]; then
-    context="${context}Deep mode requested. Before answering, state which of the Key Design Rules apply to the code in question and how you verified each, and work through the General Principles pass in full. Run .claude/gates/design-rules.sh --all to check the whole tree."$'\n'
+    context="${context}Deep mode requested. Before answering, state which of the Key Design Rules apply to the code in question and how you verified each, and work through the General Principles pass in full. Run design-rules.sh --all to check the whole tree."$'\n'
     context="${context}Then audit every function you edited for unintended behavior change. For each class of input the old code handled, state what it did before, what it does now, and whether the request asked for that difference. Revert every difference the request did not ask for, even one you believe is an improvement, and report it separately as a pre-existing bug for the user to decide on. Keep an unrequested change only when the requested fix does not work without it, and say why."$'\n'
-    context="${context}"$'\n'"Front-load the investigation. Before your first Edit or Write under Source, state api-surface, structure and data-flow as labelled lines in your reply, answered against the code you are about to change. A PreToolUse hook denies that edit until all three are there; stating them afterwards does not count."$'\n\n'
+    context="${context}"$'\n'"Front-load the investigation. Before your first Edit or Write under ${sources}, state api-surface, structure and data-flow as labelled lines in your reply, answered against the code you are about to change. A PreToolUse hook denies that edit until all three are there; stating them afterwards does not count."$'\n\n'
     context="${context}Then end your reply with the full SYSTEMATIC PASS block - one labelled line per step, each answered against the code you actually touched, naming the real functions, files and call sites. A Stop hook checks every line is present, then has a second model read them against your diff; generic lines are rejected and you will be asked to redo them."$'\n\n'
     context="${context}$("$here/systematic-check.sh" --format)"$'\n'
 else

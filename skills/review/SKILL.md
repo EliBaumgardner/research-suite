@@ -19,9 +19,9 @@ Arguments: `$ARGUMENTS`
 
 ## 1. Load the standard the report is held to
 
-- `.claude/CLAUDE.md` in full: the model invariants in the Architecture Overview, the Directory Responsibilities, How to Systematically Solve Problems, and the Key Design Rules.
-- `.gemini/GEMINI.md`: the evidence and judgment standards Gemini was told to meet. A report that ignores them is critiqued for it.
-- `.claude/notes/ongoing-issues.md`: problems already confirmed or resolved. A claim that repeats one is cited against it, not rediscovered.
+- The project's CLAUDE.md (`.claude/CLAUDE.md` or `CLAUDE.md`) in full — its architecture, model invariants and Project Design Rules — together with How to Systematically Solve Problems and the Key Design Rules, which the research-suite injects at session start.
+- The analyst brief `${CLAUDE_PLUGIN_ROOT}/gemini/ANALYST.md` and the project profile (`analyst_profile` under `[suite]` in `.claude/refactor.toml`, default `.gemini/GEMINI.md`): the evidence and judgment standards Gemini was told to meet. A report that ignores them is critiqued for it.
+- The issues file (`issues_file` under `[suite]` in `.claude/refactor.toml`, default `.claude/notes/ongoing-issues.md`), if the project keeps one: problems already confirmed or resolved. A claim that repeats one is cited against it, not rediscovered.
 - `.claude/context/GeminiAnalysis/Reviewed/`: earlier reviews. A finding already reviewed is cited, not re-verified from scratch, unless the code under it has changed.
 - Record `git rev-parse --short HEAD`. Every verdict is at that commit.
 
@@ -36,14 +36,14 @@ Break the report into individual claims and classify each:
 
 ## 3. Verify, applying the systematic principles
 
-Treat the review as analysis work under CLAUDE.md's *How to Systematically Solve Problems*: name the real functions, files and call sites, understand the data flow around every claim, and look at the broader API the claimed site sits in before judging it.
+Treat the review as analysis work under *How to Systematically Solve Problems*: name the real functions, files and call sites, understand the data flow around every claim, and look at the broader API the claimed site sits in before judging it.
 
-- **Code facts:** open the cited `file:line` at `HEAD`. Line numbers in the report are often stale — find the code by name and cite the current line. Trace call paths from their real entry points (`processBlock`, the message thread, a `ValueTree::Listener`) rather than trusting the report's description.
-- **Inferences:** follow the mechanism end to end. Where a claim is testable, check whether `SequenceTree_Tests` / `SequenceTree_GraphTests` already cover it, and run them if that settles it. For a real-time claim, name the call path from `processBlock`; say when only a RealtimeSanitizer run would settle it.
-- **Traversal claims:** check them against *every walk is the same traversal*. A behaviour claimed for the primary walker must be checked in `ModulatorWalk` and alternatives too.
-- **Design-rule claims:** run `"${CLAUDE_PLUGIN_ROOT}/gates/design-rules.sh"` and `"${CLAUDE_PLUGIN_ROOT}/gates/readability.sh" --file <path>` on the files the report analyses, and use `refactor.smell` / `refactor.find` for duplication and size claims, rather than eyeballing.
-- **External claims:** check them against primary sources (framework headers in `JUCE/modules/`, official docs, the cited paper or talk). Confirm the version: JUCE 8.0.10, C++20.
-- **Recommendations:** judge each against the Key Design Rules (could it be written at all under them?), the model invariants, real-time safety, proportionality for a one-person project, and whether the mechanism already exists under another name.
+- **Code facts:** open the cited `file:line` at `HEAD`. Line numbers in the report are often stale — find the code by name and cite the current line. Trace call paths from their real entry points (the project's main loop, threads and callbacks) rather than trusting the report's description.
+- **Inferences:** follow the mechanism end to end. Where a claim is testable, check whether the project's test targets (`test_targets` in `.claude/refactor.toml`) already cover it, and run them if that settles it. For a claim about a real-time or threading invariant, name the call path from its entry point; say when only a sanitizer run or a measurement would settle it.
+- **Invariant claims:** check them against the model invariants the project's CLAUDE.md states. Where it says several instances of a mechanism must behave the same, a behaviour claimed for one instance is checked in every one.
+- **Design-rule claims:** run `design-rules.sh --file <path>` and `readability.sh --file <path>` on the files the report analyses, and use `refactor.smell` / `refactor.find` for duplication and size claims, rather than eyeballing.
+- **External claims:** check them against primary sources (framework headers, official docs, the cited paper or talk). Confirm the versions the project profile names.
+- **Recommendations:** judge each against the Key Design Rules (could it be written at all under them?), the model invariants, real-time and threading safety where the project has such invariants, proportionality for the project's size (the profile says what that is), and whether the mechanism already exists under another name.
 
 Give every claim one verdict:
 
@@ -55,7 +55,7 @@ Give every claim one verdict:
 | **Refuted** | False at `HEAD`, or never true |
 | **Unverified** | Could not be settled from the code alone; say exactly what would settle it |
 
-Do not fix anything in `Source/` during a review, however obvious the bug. A confirmed defect is recorded in the review; changing code is a separate, approved step.
+Do not fix anything in the source tree during a review, however obvious the bug. A confirmed defect is recorded in the review; changing code is a separate, approved step.
 
 ## 4. Critique the work as a whole
 

@@ -18,18 +18,18 @@ Arguments: `$ARGUMENTS`
 - If `$ARGUMENTS` names a reviewed report, a finding, or a topic, find the surviving findings it covers. Several findings that share a root cause belong in one proposal; unrelated findings belong in separate ones.
 - If `$ARGUMENTS` is empty, list the surviving findings across all reviewed reports with their priority, mark the ones already covered by a file in `.claude/context/Proposals/Unimplemented/` or `.../Implemented/`, and ask which to propose.
 - Check `.claude/context/Proposals/Unimplemented/` and `.../Implemented/` for an existing proposal on the same problem. Extend or supersede an unimplemented one; do not write a duplicate. A problem an implemented proposal already addressed is proposed again only if the review shows that fix fell short, and the new proposal cites it.
-- Check `.claude/notes/ongoing-issues.md`: an issue already resolved there is not proposed again.
+- Check the issues file (`issues_file` under `[suite]` in `.claude/refactor.toml`, default `.claude/notes/ongoing-issues.md`), if the project keeps one: an issue already resolved there is not proposed again.
 
 ## 1. Understand the problem completely
 
-Apply CLAUDE.md's *How to Systematically Solve Problems* in full, against the code at `HEAD` — the review verified the finding at an earlier commit, so re-read every site now. Record `git rev-parse --short HEAD`.
+Apply *How to Systematically Solve Problems* in full, against the code at `HEAD` — the review verified the finding at an earlier commit, so re-read every site now. Record `git rev-parse --short HEAD`.
 
 - **API surface** — every function, type and member the problem touches, and every caller of each (use clangd / `refactor.find`, not memory).
-- **Structure** — which classes own the pieces, how they are composed, and which directory responsibility (CLAUDE.md) each belongs to.
-- **Data flow** — how data reaches the problem site and where it goes after: which thread, which listener, which snapshot, which FIFO.
-- **Mechanism** — step by step, how the defect or missed opportunity actually arises, with a concrete input (a graph shape, a host action, an edit sequence) that exposes it.
+- **Structure** — which classes own the pieces, how they are composed, and which part of the architecture the project's CLAUDE.md assigns each to.
+- **Data flow** — how data reaches the problem site and where it goes after: which thread, which callback, which shared state.
+- **Mechanism** — step by step, how the defect or missed opportunity actually arises, with a concrete input that exposes it.
 - **Broader API** — the classes that compose the ones involved, and the design they follow. Repeat the pass one level up.
-- **Invariants touched** — which of the model's invariants (every walk is the same traversal, geometry is data, host-transport replay, audio-thread safety) the problem or the fix touches.
+- **Invariants touched** — which of the model invariants the project's CLAUDE.md states the problem or the fix touches.
 
 If the finding turns out to be wrong or already fixed at `HEAD`, stop and say so instead of proposing.
 
@@ -58,7 +58,7 @@ Step by step, with real functions and file:line, how the problem arises. Include
 ### Evidence
 What confirms it: the review's ledger entries, code read at HEAD, a test that fails or a test that would.
 ### Why It Matters
-The consequence for the user of the plugin, and the invariant or goal it breaks. Priority P0–P3.
+The consequence for the project's users, and the invariant or goal it breaks. Priority P0–P3.
 
 ## Current Design
 ### API Surface
@@ -66,7 +66,7 @@ Every function, type and member involved, with its callers.
 ### Structure
 Owners and composition, and the directory responsibility each piece falls under.
 ### Data Flow
-The path through threads, listeners, snapshots and FIFOs, as a short diagram if it helps.
+The path through threads, callbacks and shared state, as a short diagram if it helps.
 
 ## Approaches Considered
 Each realistic approach: what it changes, cost, risk, fit with the Key Design Rules. Then the recommendation and why.
@@ -79,8 +79,8 @@ Numbered steps, ordered so the minimal fix lands first and cleanups follow. Ever
 - **Changes:** files, functions and members, and exactly what changes in each. Code sketches, where given, follow the Key Design Rules (no comments, no ternaries, braces on every block, no wrappers, enums for named states).
 - **Refactor commands:** any extract, inline or rename done with `refactor.encap` / `refactor.decap` / `refactor.replace`, and any multi-site mechanical rewrite with `refactor.rewrite`, named with its arguments.
 - **Behaviour delta:** for each class of input the code handles, what it does before and after. Any difference not required by the goal is called out.
-- **Real-time safety:** for anything reachable from `processBlock`, why it neither allocates, frees, locks, throws nor posts.
-- **Verification:** build target, test targets, the new or changed Catch2 test (a traversal change adds a parity shape to `TraversalTests.cpp`, walked both as nodes and as modulators), and the manual host check, with what to listen or look for.
+- **Invariants:** for anything the project's invariants constrain (a real-time path, a thread boundary, an ownership rule), why the step keeps them.
+- **Verification:** the build target and test targets from `.claude/refactor.toml`, the new or changed test (including any test the project's CLAUDE.md requires for this kind of change), and the manual check, with what to look for.
 - **Rollback:** how to back the step out on its own.
 
 ## Risks

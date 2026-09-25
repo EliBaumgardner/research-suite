@@ -7,15 +7,19 @@ if [ -z "$subject" ]; then
     exit 2
 fi
 
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-cd "$root" || exit 2
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$here/../../lib/project.sh"
 
 analysis=".claude/context/GeminiAnalysis"
 unreviewed="$analysis/Unreviewed"
 reviewed="$analysis/Reviewed"
 proposals=".claude/context/Proposals"
 
-run_dir="$(mktemp -d "${TMPDIR:-/tmp}/sequencetree-research.XXXXXX")"
+mkdir -p "$unreviewed/ProgramAudits" "$unreviewed/ResearchReports" \
+         "$reviewed/ProgramAudits" "$reviewed/ResearchReports" \
+         "$proposals/Unimplemented" "$proposals/Implemented"
+
+run_dir="$(mktemp -d "${TMPDIR:-/tmp}/research-suite.XXXXXX")"
 summary="$run_dir/summary.txt"
 
 log() {
@@ -45,7 +49,12 @@ git status --porcelain > "$run_dir/git-before.txt"
 list_unreviewed > "$run_dir/unreviewed-before.txt"
 touch "$run_dir/analysis.marker"
 
-analyze_command=".gemini/commands/analyze.toml"
+if [ ! -f "$analyst_profile" ]; then
+    log "no project profile at $analyst_profile - run /research-suite:init, or set analyst_profile under [suite] in .claude/refactor.toml"
+    fail "analyze"
+fi
+
+analyze_command="$suite_root/gemini/analyze.toml"
 analyze_model="gemini-3.1-pro-high"
 analyze_prompt="$run_dir/analyze-prompt.md"
 
@@ -54,7 +63,12 @@ awk '/^prompt = """/ { inside = 1; next } inside && /^"""/ { inside = 0 } inside
         case "$line" in
             @\{*\})
                 included="${line#@\{}"
-                cat "${included%\}}"
+                included="${included%\}}"
+                if [ "$included" = "profile" ]; then
+                    cat "$analyst_profile"
+                else
+                    cat "$suite_root/gemini/$included"
+                fi
                 ;;
             *)
                 printf '%s\n' "${line//\{\{args\}\}/$subject}"

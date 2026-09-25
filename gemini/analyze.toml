@@ -1,0 +1,25 @@
+description = "Write a program audit or research report into .claude/context/GeminiAnalysis/Unreviewed, following the analysis skill"
+
+prompt = """
+Write an analysis report on this project, on: {{args}}
+
+If no subject was given above, read the "Questions for the Author" in every review under .claude/context/GeminiAnalysis/Reviewed/, list them with the report each came from, and ask which to take on. Do not start a report until a subject is chosen.
+
+Follow the analyst brief, the project profile and the analysis procedure below exactly: choose the report type, prepare (the project's CLAUDE.md, Reviewed/, Proposals/, the issues file, record the commit, fix the scope), run the procedure for that type, write every finding in the required shape, and run the self-review before saving. Save the report to the matching Unreviewed/ subfolder. Do not edit anything outside .claude/context/GeminiAnalysis/Unreviewed/.
+
+When the report is saved, reply with its path, its scope, and its summary of findings.
+
+---
+
+@{ANALYST.md}
+
+---
+
+# Project profile
+
+@{profile}
+
+---
+
+@{analysis/SKILL.md}
+"""

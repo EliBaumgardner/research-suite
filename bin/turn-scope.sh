@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-cd "$root" 2>/dev/null || exit 0
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$here/../lib/project.sh"
 
 mode="${1:-}"
 session="${2:-unknown}"
@@ -13,9 +13,9 @@ stamp="$snap/.captured"
 
 snapshot() {
     rm -rf "$snap"
-    mkdir -p "$snap/Source" || return 0
-    if [ -d Source ]; then
-        find Source -type f \( -name '*.cpp' -o -name '*.h' \) -print0 \
+    mkdir -p "$snap/$sources" || return 0
+    if [ -d "$sources" ]; then
+        find "$sources" -type f \( -name '*.cpp' -o -name '*.h' \) -print0 \
             | while IFS= read -r -d '' f; do
                 mkdir -p "$snap/$(dirname "$f")"
                 cp "$f" "$snap/$f"
@@ -26,14 +26,14 @@ snapshot() {
 
 raw_diff() {
     if [ ! -f "$stamp" ]; then
-        git diff HEAD -- 'Source/*.cpp' 'Source/*.h' 2>/dev/null
-        git ls-files --others --exclude-standard -- 'Source/*.cpp' 'Source/*.h' 2>/dev/null \
+        git diff HEAD -- "$sources/*.cpp" "$sources/*.h" 2>/dev/null
+        git ls-files --others --exclude-standard -- "$sources/*.cpp" "$sources/*.h" 2>/dev/null \
             | sed 's/^/new untracked file: /'
         return
     fi
-    { find Source -type f \( -name '*.cpp' -o -name '*.h' \) 2>/dev/null
-      if [ -d "$snap/Source" ]; then
-          find "$snap/Source" -type f \( -name '*.cpp' -o -name '*.h' \) 2>/dev/null \
+    { find "$sources" -type f \( -name '*.cpp' -o -name '*.h' \) 2>/dev/null
+      if [ -d "$snap/$sources" ]; then
+          find "$snap/$sources" -type f \( -name '*.cpp' -o -name '*.h' \) 2>/dev/null \
               | sed "s#^$snap/##"
       fi
     } | sort -u | while IFS= read -r f; do

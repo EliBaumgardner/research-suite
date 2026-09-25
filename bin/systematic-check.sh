@@ -2,9 +2,7 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scanner="$(dirname "$(python3 -c 'import refactor; print(refactor.__file__)' 2>/dev/null)")/cxx-scan.awk"
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-cd "$root" 2>/dev/null || exit 0
+. "$here/../lib/project.sh"
 
 steps="api-surface structure data-flow design-rules readability behavior-delta|code-behavior broader-api broader-conformance recursion"
 frontsteps="api-surface structure data-flow"
@@ -108,7 +106,7 @@ turn_files_touched() {
             else ((.input.command // "") | tostring) end)
         | join("\n")
     ' "$1" 2>/dev/null \
-      | grep -oE 'Source/[A-Za-z0-9_/.-]+\.(cpp|h)' \
+      | grep -oE "${sources}/[A-Za-z0-9_/.-]+\.(cpp|h)" \
       | sort -u \
       | while IFS= read -r f; do
             if [ -f "$f" ]; then
@@ -156,7 +154,7 @@ pre_edit_gate() {
     target="${target#"$root"/}"
 
     case "$target" in
-        Source/*.cpp|Source/*.h) ;;
+        "$sources"/*.cpp|"$sources"/*.h) ;;
         *) return 0 ;;
     esac
 
@@ -181,7 +179,7 @@ pre_edit_gate() {
 
     if [ -z "$missing" ] && [ -z "$thin" ]; then
         : > "$satisfied"
-        printf '{"systemMessage":"systematic-check: front-half passes stated, Source edits unblocked for this turn","suppressOutput":true}\n'
+        printf '{"systemMessage":"systematic-check: front-half passes stated, source edits unblocked for this turn","suppressOutput":true}\n'
         return 0
     fi
 
@@ -195,7 +193,7 @@ pre_edit_gate() {
         return 0
     fi
 
-    reason="Deep mode: the front-half passes must be stated before you edit Source (CLAUDE.md, How to Systematically Solve Problems)."$'\n'
+    reason="Deep mode: the front-half passes must be stated before you edit ${sources} (How to Systematically Solve Problems)."$'\n'
     reason="${reason}This edit to ${target} was not applied. Answer these in your reply text first, against the code you are about to change, then repeat the edit:"$'\n\n'
     if [ -n "$missing" ]; then
         reason="${reason}Missing:"$'\n'"${missing}"$'\n'
@@ -368,7 +366,7 @@ missing=$(printf '%s' "$result" | awk -F'\t' '$1 == "MISSING" { print "  " $2 " 
 thin=$(printf '%s' "$result" | awk -F'\t' '$1 == "THIN" { print "  " $2 " - only " $3 " characters" }')
 
 if [ -n "$missing" ] || [ -n "$thin" ]; then
-    reason="Deep mode: the systematic pass block is incomplete (CLAUDE.md, How to Systematically Solve Problems)."$'\n'
+    reason="Deep mode: the systematic pass block is incomplete (How to Systematically Solve Problems)."$'\n'
     reason="${reason}End your reply with a SYSTEMATIC PASS block, one labelled line per step, each answered against the code you actually touched."$'\n\n'
     if [ -n "$missing" ]; then
         reason="${reason}Missing:"$'\n'"${missing}"$'\n'
@@ -395,7 +393,7 @@ if [ -z "$diff" ]; then
     anchorkind="inventory"
 fi
 if [ -z "$diff" ]; then
-    printf '{"systemMessage":"systematic-check: pass block complete, no Source code in scope to judge","suppressOutput":true}\n'
+    printf '{"systemMessage":"systematic-check: pass block complete, no source code in scope to judge","suppressOutput":true}\n'
     exit 0
 fi
 
@@ -416,7 +414,7 @@ fi
 
 if [ "$rc" -eq 1 ]; then
     reason="Deep mode: the systematic pass block does not hold up against the diff."$'\n'
-    reason="${reason}A second model read your passes alongside the actual Source changes and found these generic or unsupported:"$'\n\n'
+    reason="${reason}A second model read your passes alongside the actual source changes and found these generic or unsupported:"$'\n\n'
     reason="${reason}${judgefailures}"$'\n\n'
     reason="${reason}Redo those passes against the code you changed - name the real functions, call sites and behaviours - then restate the block."$'\n'
     jq -n --arg r "$reason" '{decision: "block", reason: $r}'

@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$root" || exit 2
+
+report() {
+    printf '  %-9s %s\n' "$1" "$2"
+}
+
+echo "research-suite init in $root"
+echo
+
+for dir in .claude/context/GeminiAnalysis/Unreviewed/ProgramAudits \
+           .claude/context/GeminiAnalysis/Unreviewed/ResearchReports \
+           .claude/context/GeminiAnalysis/Reviewed/ProgramAudits \
+           .claude/context/GeminiAnalysis/Reviewed/ResearchReports \
+           .claude/context/Proposals/Unimplemented \
+           .claude/context/Proposals/Implemented; do
+    if [ -d "$dir" ]; then
+        report exists "$dir/"
+    else
+        mkdir -p "$dir"
+        report created "$dir/"
+    fi
+done
+
+config=""
+for candidate in .claude/refactor.toml .refactor.toml; do
+    if [ -f "$candidate" ]; then
+        config="$candidate"
+    fi
+done
+if [ -n "$config" ]; then
+    report exists "$config"
+else
+    config=".claude/refactor.toml"
+    sources="src"
+    for candidate in Source src source lib; do
+        if [ -d "$candidate" ]; then
+            sources="$candidate"
+            break
+        fi
+    done
+    cat > "$config" <<EOF
+sources      = "$sources"
+edit_roots   = ["$sources"]
+build_dir    = "build"
+build_trees  = ["build"]
+build_target = ""
+
+[test_targets]
+
+[suite]
+core_purpose_api = []
+kept_small_classes = []
+unchecked = []
+EOF
+    report created "$config (sources = \"$sources\"; fill in the build and test targets)"
+fi
+
+. "$here/../lib/project.sh"
+
+if [ -f "$analyst_profile" ]; then
+    report exists "$analyst_profile"
+else
+    mkdir -p "$(dirname "$analyst_profile")"
+    cat > "$analyst_profile" <<'EOF'
+# Project Profile
+
+This is the project profile the research-suite's analyst brief refers to. It holds only what is specific to this project.
+
+## The Project
+
+What the project is, who works on it, and how large recommendations should be.
+
+## Frameworks, Versions and Tooling
+
+The frameworks and language standard, with versions, and the build and test commands.
+
+## Model Invariants to Check
+
+The invariants the analyst should check every finding against, and the entry points data comes in through.
+
+## What Counts as a Concrete Input
+
+What a reproduction looks like for this project.
+
+## Outward Research
+
+The comparable systems and literature worth researching against.
+EOF
+    report created "$analyst_profile (a skeleton to fill in)"
+fi
+
+if [ -n "$rules_file" ] && grep -qF -- "$project_rules" "$rules_file" 2>/dev/null; then
+    report exists "$project_rules in $rules_file"
+else
+    report missing "a \"$project_rules\" section in the project's CLAUDE.md"
+fi
+
+echo
+echo "tools:"
+for tool in jq python3 claude agy refactor.smell refactor.tidy; do
+    if command -v "$tool" >/dev/null 2>&1; then
+        report found "$tool"
+    else
+        report missing "$tool"
+    fi
+done
+if [ -n "$scanner" ] && [ -f "$scanner" ]; then
+    report found "refactor-tools (cxx-scan.awk)"
+else
+    report missing "refactor-tools python package - the design-rule and readability gates need it"
+fi

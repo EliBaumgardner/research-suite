@@ -2,9 +2,7 @@
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-scanner="$(dirname "$(python3 -c 'import refactor; print(refactor.__file__)' 2>/dev/null)")/cxx-scan.awk"
-root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-cd "$root" 2>/dev/null || exit 0
+. "$here/../lib/project.sh"
 
 maxfunc=80
 minsplit=30
@@ -38,15 +36,15 @@ if [ "$mode" = "post-tool" ]; then
     [ -n "$target" ] || exit 0
     target="${target#"$root"/}"
     case "$target" in
-        Source/*.cpp|Source/*.h) ;;
+        "$sources"/*.cpp|"$sources"/*.h) ;;
         *) exit 0 ;;
     esac
 fi
 
 case "$mode" in
     all)
-        files=$(find Source -type f \( -name '*.cpp' -o -name '*.h' \) | sort)
-        scope="all Source files"
+        files=$(find "$sources" -type f \( -name '*.cpp' -o -name '*.h' \) | sort)
+        scope="all $sources files"
         scoped=0
         ;;
     file)
@@ -74,7 +72,7 @@ if [ -z "$files" ]; then
     if [ "$mode" = "post-tool" ] || [ "$mode" = "stop" ]; then
         exit 0
     fi
-    echo "readability: no Source files in scope"
+    echo "readability: no $sources files in scope"
     exit 0
 fi
 

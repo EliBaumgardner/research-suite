@@ -1,11 +1,23 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/session-rules.sh\" --hook",
+            "timeout": 20,
+            "statusMessage": "Loading design rules"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/claude-md-hook.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/claude-md-hook.sh\"",
             "timeout": 20,
             "statusMessage": "Re-reading CLAUDE.md rules"
           }
@@ -18,13 +30,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/refactor-gate.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/refactor-gate.sh\"",
             "timeout": 15,
             "statusMessage": "Checking for hand-run extract/inline"
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/systematic-check.sh\" --hook pre-edit",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/systematic-check.sh\" --hook pre-edit",
             "timeout": 15,
             "statusMessage": "Front-half pass gate"
           }
@@ -37,13 +49,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/design-rules.sh\" --hook post-tool",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/design-rules.sh\" --hook post-tool",
             "timeout": 15,
             "statusMessage": "Checking design rules"
           },
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/readability.sh\" --hook post-tool",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/readability.sh\" --hook post-tool",
             "timeout": 15,
             "statusMessage": "Checking readability"
           }
@@ -55,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/design-rules.sh\" --hook stop",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/design-rules.sh\" --hook stop",
             "timeout": 20,
             "statusMessage": "Design-rule gate"
           }
@@ -65,7 +77,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/readability.sh\" --hook stop",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/readability.sh\" --hook stop",
             "timeout": 20,
             "statusMessage": "Readability gate"
           }
@@ -75,7 +87,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/systematic-check.sh\" --hook stop",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/systematic-check.sh\" --hook stop",
             "timeout": 150,
             "statusMessage": "Systematic-pass gate"
           }
@@ -85,7 +97,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/gates/source-lines.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/source-lines.sh\"",
             "timeout": 10,
             "statusMessage": "Counting Source/ lines"
           }

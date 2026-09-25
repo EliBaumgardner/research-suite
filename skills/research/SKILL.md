@@ -10,9 +10,9 @@ allowed-tools: Bash(*/skills/research/run-pipeline.sh *)
 
 Subject: `$ARGUMENTS`
 
-This skill conducts the three stages described under *Analysis, Reviews and Proposals* in `.claude/CLAUDE.md`. It does not do any stage itself. `run-pipeline.sh`, next to this file, runs each stage as its own process, so each one reads only what the stage before it filed:
+This skill conducts the three stages of the research-suite pipeline (see the plugin's README). It does not do any stage itself. `run-pipeline.sh`, next to this file, runs each stage as its own process, so each one reads only what the stage before it filed:
 
-1. `agy -p` on `gemini-3.1-pro-high` — Antigravity runs the prompt from `.gemini/commands/analyze.toml` (the same `/analyze` Gemini CLI used, with the subject and `.gemini/skills/analysis/SKILL.md` filled in, since Antigravity does not read `.toml` commands) and writes one new report into `GeminiAnalysis/Unreviewed/`.
+1. `agy -p` on `gemini-3.1-pro-high` — Antigravity runs the prompt from the plugin's `gemini/analyze.toml`, with the subject, the analyst brief (`gemini/ANALYST.md`), the project profile (`analyst_profile` under `[suite]` in `.claude/refactor.toml`, default `.gemini/GEMINI.md`) and the analysis skill (`gemini/analysis/SKILL.md`) filled in, since Antigravity does not read `.toml` commands, and writes one new report into `GeminiAnalysis/Unreviewed/`. The script creates any missing context folder first, and stops if the project has no profile.
 2. `claude -p "/research-suite:review <that report>"` — files the reviewed report in `GeminiAnalysis/Reviewed/` and deletes the original.
 3. `claude -p "/research-suite:propose <the reviewed report>"` — writes the proposal(s) into `Proposals/Unimplemented/`.
 
