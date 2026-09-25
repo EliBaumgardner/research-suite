@@ -13,6 +13,17 @@ kept_small_classes=""
 disabled_rules=""
 project_unchecked=""
 project_checks=""
+analyst="agy"
+analyst_model=""
+review_model=""
+propose_model=""
+deep_trigger="-deep"
+judge_model="haiku"
+judge_timeout="120"
+min_answer="40"
+max_denials="3"
+max_function_lines="80"
+min_extract_lines="30"
 
 eval "$(python3 - <<'PY' 2>/dev/null
 import os
@@ -21,7 +32,21 @@ import refactor
 from refactor.workspace import CONFIG
 
 suite = CONFIG.get("suite", {})
+pipeline = suite.get("pipeline", {})
+deep = suite.get("deep", {})
+readability = suite.get("readability", {})
 values = {
+    "analyst": pipeline.get("analyst", "agy"),
+    "analyst_model": pipeline.get("analyst_model", ""),
+    "review_model": pipeline.get("review_model", ""),
+    "propose_model": pipeline.get("propose_model", ""),
+    "deep_trigger": deep.get("trigger", "-deep"),
+    "judge_model": deep.get("judge_model", "haiku"),
+    "judge_timeout": str(deep.get("judge_timeout", 120)),
+    "min_answer": str(deep.get("min_answer", 40)),
+    "max_denials": str(deep.get("max_denials", 3)),
+    "max_function_lines": str(readability.get("max_function_lines", 80)),
+    "min_extract_lines": str(readability.get("min_extract_lines", 30)),
     "sources": CONFIG["sources"],
     "build_target": CONFIG["build_target"],
     "scanner": os.path.join(os.path.dirname(refactor.__file__), "cxx-scan.awk"),

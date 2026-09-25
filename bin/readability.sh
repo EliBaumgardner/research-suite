@@ -4,8 +4,8 @@ set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/../lib/project.sh"
 
-maxfunc=80
-minsplit=30
+maxfunc="$max_function_lines"
+minsplit="$min_extract_lines"
 
 mode="turn"
 target=""

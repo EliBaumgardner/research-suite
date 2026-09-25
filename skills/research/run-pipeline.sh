@@ -45,6 +45,40 @@ log "subject: $subject"
 log "commit: $(git rev-parse --short HEAD)"
 log "logs: $run_dir"
 
+case "$analyst" in
+    agy)
+        if [ -z "$analyst_model" ]; then
+            analyst_model="gemini-3.1-pro-high"
+        fi
+        analyst_command=(agy --dangerously-skip-permissions --disable-slash-commands --print-timeout 0 --model "$analyst_model")
+        ;;
+    gemini)
+        analyst_command=(gemini --approval-mode yolo)
+        if [ -n "$analyst_model" ]; then
+            analyst_command+=(-m "$analyst_model")
+        fi
+        ;;
+    claude)
+        analyst_command=(env -u CLAUDECODE claude --permission-mode auto)
+        if [ -n "$analyst_model" ]; then
+            analyst_command+=(--model "$analyst_model")
+        fi
+        ;;
+    *)
+        log "unknown analyst \"$analyst\" under [suite.pipeline] - use agy, gemini or claude"
+        fail "configuration"
+        ;;
+esac
+
+review_command=(env -u CLAUDECODE claude --permission-mode auto)
+if [ -n "$review_model" ]; then
+    review_command+=(--model "$review_model")
+fi
+propose_command=(env -u CLAUDECODE claude --permission-mode auto)
+if [ -n "$propose_model" ]; then
+    propose_command+=(--model "$propose_model")
+fi
+
 git status --porcelain > "$run_dir/git-before.txt"
 list_unreviewed > "$run_dir/unreviewed-before.txt"
 touch "$run_dir/analysis.marker"
@@ -55,7 +89,6 @@ if [ ! -f "$analyst_profile" ]; then
 fi
 
 analyze_command="$suite_root/gemini/analyze.toml"
-analyze_model="gemini-3.1-pro-high"
 analyze_prompt="$run_dir/analyze-prompt.md"
 
 awk '/^prompt = """/ { inside = 1; next } inside && /^"""/ { inside = 0 } inside' "$analyze_command" \
@@ -80,10 +113,9 @@ if ! grep -q . "$analyze_prompt"; then
     fail "analyze"
 fi
 
-log "stage 1/3: Antigravity analysis on $analyze_model"
-agy -p "$(cat "$analyze_prompt")" --model "$analyze_model" --dangerously-skip-permissions \
-    --disable-slash-commands --print-timeout 0 > "$run_dir/analyze.log" 2>&1 \
-    || fail "analyze (agy exited $?, see analyze.log)"
+log "stage 1/3: analysis by $analyst on ${analyst_model:-its default model}"
+"${analyst_command[@]}" -p "$(cat "$analyze_prompt")" > "$run_dir/analyze.log" 2>&1 \
+    || fail "analyze ($analyst exited $?, see analyze.log)"
 
 list_unreviewed > "$run_dir/unreviewed-after.txt"
 comm -13 "$run_dir/unreviewed-before.txt" "$run_dir/unreviewed-after.txt" > "$run_dir/new-reports.txt"
@@ -99,7 +131,7 @@ log "report: $report"
 git status --porcelain > "$run_dir/git-after-analyze.txt"
 outside_writes_since "$run_dir/analysis.marker" > "$run_dir/outside-writes.txt"
 if ! cmp -s "$run_dir/git-before.txt" "$run_dir/git-after-analyze.txt" || [ -s "$run_dir/outside-writes.txt" ]; then
-    log "Gemini wrote outside $unreviewed; nothing was reverted"
+    log "the analyst wrote outside $unreviewed; nothing was reverted"
     diff "$run_dir/git-before.txt" "$run_dir/git-after-analyze.txt" >> "$summary"
     cat "$run_dir/outside-writes.txt" >> "$summary"
     fail "analyze guard"
@@ -108,8 +140,8 @@ fi
 subfolder="$(basename "$(dirname "$report")")"
 reviewed_report="$reviewed/$subfolder/$(basename "$report")"
 
-log "stage 2/3: Claude /review"
-env -u CLAUDECODE claude -p "/research-suite:review $report" --permission-mode auto > "$run_dir/review.log" 2>&1 \
+log "stage 2/3: Claude review on ${review_model:-its default model}"
+"${review_command[@]}" -p "/research-suite:review $report" > "$run_dir/review.log" 2>&1 \
     || fail "review (claude exited $?, see review.log)"
 
 if [ ! -f "$reviewed_report" ]; then
@@ -131,8 +163,8 @@ fi
 
 touch "$run_dir/proposal.marker"
 
-log "stage 3/3: Claude /propose"
-env -u CLAUDECODE claude -p "/research-suite:propose $reviewed_report" --permission-mode auto > "$run_dir/propose.log" 2>&1 \
+log "stage 3/3: Claude propose on ${propose_model:-its default model}"
+"${propose_command[@]}" -p "/research-suite:propose $reviewed_report" > "$run_dir/propose.log" 2>&1 \
     || fail "propose (claude exited $?, see propose.log)"
 
 git status --porcelain > "$run_dir/git-after-propose.txt"

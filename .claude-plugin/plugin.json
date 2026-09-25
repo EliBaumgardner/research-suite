@@ -1,6 +1,6 @@
 {
   "name": "research-suite",
   "description": "Design-rule, readability and deep-mode gates for C++ projects, plus the analyze / review / propose / implement research pipeline",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": { "name": "Eli Baumgardner" }
 }

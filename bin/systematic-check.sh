@@ -7,10 +7,10 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 steps="api-surface structure data-flow design-rules readability behavior-delta|code-behavior broader-api broader-conformance recursion"
 frontsteps="api-surface structure data-flow"
 
-minlen=40
-maxdenials=3
-judgemodel="haiku"
-judgewait=120
+minlen="$min_answer"
+maxdenials="$max_denials"
+judgemodel="$judge_model"
+judgewait="$judge_timeout"
 
 mode=""
 case "${1:-}" in

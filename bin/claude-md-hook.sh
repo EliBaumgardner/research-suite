@@ -11,7 +11,8 @@ session=$(printf '%s' "$payload" | jq -r '.session_id // "unknown"' 2>/dev/null)
 "$here/turn-scope.sh" --snapshot "$session" 2>/dev/null
 
 deep=0
-if printf '%s' "$prompt" | grep -qiE -- '-deep([^[:alnum:]_-]|$)'; then
+trigger_pattern=$(printf '%s' "$deep_trigger" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
+if printf '%s' "$prompt" | grep -qiE -- "${trigger_pattern}([^[:alnum:]_-]|\$)"; then
     deep=1
 fi
 
@@ -55,7 +56,7 @@ fi
 context="${context}Design-rule check on files changed vs HEAD:"$'\n\n'"${check}"$'\n\n'
 
 context="${context}Readability gate (runs on the code you add this turn, not on the working tree):"$'\n'
-context="${context}  no function over 80 lines - when one is, lift out a block of 30+ lines as its own function"$'\n'
+context="${context}  no function over ${max_function_lines} lines - when one is, lift out a block of ${min_extract_lines}+ lines as its own function"$'\n'
 context="${context}  one class per .cpp - do not implement a second class there unless its header declares it"$'\n'
 context="${context}  define members in the order the header declares them, and group member variables apart from member functions"$'\n'
 context="${context}  one public: and one private: section per class - never reopen an access section you already closed"$'\n'
@@ -69,7 +70,7 @@ if [ "$deep" -eq 1 ]; then
     context="${context}$("$here/systematic-check.sh" --format)"$'\n'
 else
     context="${context}Analysis counts as work: when the user asks you to analyse, review or explain code rather than change it, the systematic principles apply to that answer too. Name the real functions and call sites, and answer readability for the code you read."$'\n\n'
-context="${context}Light mode: answer directly. No rule recitation, no multi-pass audit, no broader-API sweep unless the task needs it. The Key Design Rules still bind any code you write. The user requests the full verification protocol by putting -deep in their prompt."$'\n'
+context="${context}Light mode: answer directly. No rule recitation, no multi-pass audit, no broader-API sweep unless the task needs it. The Key Design Rules still bind any code you write. The user requests the full verification protocol by putting ${deep_trigger} in their prompt."$'\n'
 fi
 
 jq -n --arg ctx "$context" \

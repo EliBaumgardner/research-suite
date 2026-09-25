@@ -22,7 +22,7 @@ To work on the plugin from a local clone, add the clone as the marketplace inste
 
 - `jq` and `python3` (3.11 or later)
 - [`refactor-tools`](https://github.com/EliBaumgardner/refactor-tools): clone it and `pip install -e refactor-tools` (its README has the LLVM requirements). The gates read the project config through it, use its C++ scanner, and call `refactor.smell` and `refactor.tidy`.
-- `agy` (Antigravity) for the analysis stage, and the `claude` CLI for the review and proposal stages
+- the analysis tool you configure (`agy` by default, or `gemini` or `claude`), and the `claude` CLI for the review and proposal stages
 
 ## Commands
 
@@ -78,6 +78,23 @@ project_rules      = "### Project Design Rules"   # the CLAUDE.md heading inject
 rules_file         = ".claude/CLAUDE.md"       # default: .claude/CLAUDE.md, else CLAUDE.md
 analyst_profile    = ".gemini/GEMINI.md"
 issues_file        = ".claude/notes/ongoing-issues.md"
+
+[suite.pipeline]
+analyst       = "agy"                 # who writes the report: agy (Antigravity), gemini (Gemini CLI) or claude
+analyst_model = "gemini-3.1-pro-high" # empty: the tool's own default; agy defaults to gemini-3.1-pro-high
+review_model  = ""                    # model for the review stage; empty: the claude CLI default
+propose_model = ""                    # model for the proposal stage; empty: the claude CLI default
+
+[suite.deep]
+trigger       = "-deep"               # the word in a prompt that turns deep mode on
+judge_model   = "haiku"               # the model that judges the SYSTEMATIC PASS block
+judge_timeout = 120                   # seconds before the judge is given up on
+min_answer    = 40                    # characters a pass needs to count as an answer
+max_denials   = 3                     # front-half denials before an edit is let through
+
+[suite.readability]
+max_function_lines = 80               # longest function the readability gate allows
+min_extract_lines  = 30               # smallest block it suggests lifting out
 
 [[suite.checks]]                               # project rules checkable by a regular expression
 rule           = "Never allocate on the audio thread"
