@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+subject="$*"
+if [ -z "$subject" ]; then
+    echo "usage: run-pipeline.sh <subject>" >&2
+    exit 2
+fi
+
+root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+cd "$root" || exit 2
+
+analysis=".claude/context/GeminiAnalysis"
+unreviewed="$analysis/Unreviewed"
+reviewed="$analysis/Reviewed"
+proposals=".claude/context/Proposals"
+
+run_dir="$(mktemp -d "${TMPDIR:-/tmp}/sequencetree-research.XXXXXX")"
+summary="$run_dir/summary.txt"
+
+log() {
+    printf '%s  %s\n' "$(date '+%H:%M:%S')" "$*" | tee -a "$summary"
+}
+
+fail() {
+    log "FAILED at stage: $1"
+    log "logs: $run_dir"
+    exit 1
+}
+
+list_unreviewed() {
+    find "$unreviewed/ProgramAudits" "$unreviewed/ResearchReports" -type f -name '*.md' | sort
+}
+
+outside_writes_since() {
+    find .claude .gemini -type f -newer "$1" \
+        ! -path "$unreviewed/*" ! -path "$reviewed/*" ! -path "$proposals/*" 2>/dev/null
+}
+
+log "subject: $subject"
+log "commit: $(git rev-parse --short HEAD)"
+log "logs: $run_dir"
+
+git status --porcelain > "$run_dir/git-before.txt"
+list_unreviewed > "$run_dir/unreviewed-before.txt"
+touch "$run_dir/analysis.marker"
+
+analyze_command=".gemini/commands/analyze.toml"
+analyze_model="gemini-3.1-pro-high"
+analyze_prompt="$run_dir/analyze-prompt.md"
+
+awk '/^prompt = """/ { inside = 1; next } inside && /^"""/ { inside = 0 } inside' "$analyze_command" \
+    | while IFS= read -r line; do
+        case "$line" in
+            @\{*\})
+                included="${line#@\{}"
+                cat "${included%\}}"
+                ;;
+            *)
+                printf '%s\n' "${line//\{\{args\}\}/$subject}"
+                ;;
+        esac
+    done > "$analyze_prompt"
+if ! grep -q . "$analyze_prompt"; then
+    log "could not read the analysis prompt from $analyze_command"
+    fail "analyze"
+fi
+
+log "stage 1/3: Antigravity analysis on $analyze_model"
+agy -p "$(cat "$analyze_prompt")" --model "$analyze_model" --dangerously-skip-permissions \
+    --disable-slash-commands --print-timeout 0 > "$run_dir/analyze.log" 2>&1 \
+    || fail "analyze (agy exited $?, see analyze.log)"
+
+list_unreviewed > "$run_dir/unreviewed-after.txt"
+comm -13 "$run_dir/unreviewed-before.txt" "$run_dir/unreviewed-after.txt" > "$run_dir/new-reports.txt"
+report_count="$(wc -l < "$run_dir/new-reports.txt" | tr -d ' ')"
+if [ "$report_count" -ne 1 ]; then
+    log "expected exactly one new report in $unreviewed, found $report_count"
+    cat "$run_dir/new-reports.txt" >> "$summary"
+    fail "analyze"
+fi
+report="$(cat "$run_dir/new-reports.txt")"
+log "report: $report"
+
+git status --porcelain > "$run_dir/git-after-analyze.txt"
+outside_writes_since "$run_dir/analysis.marker" > "$run_dir/outside-writes.txt"
+if ! cmp -s "$run_dir/git-before.txt" "$run_dir/git-after-analyze.txt" || [ -s "$run_dir/outside-writes.txt" ]; then
+    log "Gemini wrote outside $unreviewed; nothing was reverted"
+    diff "$run_dir/git-before.txt" "$run_dir/git-after-analyze.txt" >> "$summary"
+    cat "$run_dir/outside-writes.txt" >> "$summary"
+    fail "analyze guard"
+fi
+
+subfolder="$(basename "$(dirname "$report")")"
+reviewed_report="$reviewed/$subfolder/$(basename "$report")"
+
+log "stage 2/3: Claude /review"
+env -u CLAUDECODE claude -p "/research-suite:review $report" --permission-mode auto > "$run_dir/review.log" 2>&1 \
+    || fail "review (claude exited $?, see review.log)"
+
+if [ ! -f "$reviewed_report" ]; then
+    log "review did not write $reviewed_report"
+    fail "review"
+fi
+if [ -f "$report" ]; then
+    log "review left the original in place: $report"
+fi
+log "reviewed: $reviewed_report"
+log "$(grep -m1 '^> Verdict:' "$reviewed_report")"
+
+git status --porcelain > "$run_dir/git-after-review.txt"
+if ! cmp -s "$run_dir/git-before.txt" "$run_dir/git-after-review.txt"; then
+    log "review changed tracked or untracked files in the repo; nothing was reverted"
+    diff "$run_dir/git-before.txt" "$run_dir/git-after-review.txt" >> "$summary"
+    fail "review guard"
+fi
+
+touch "$run_dir/proposal.marker"
+
+log "stage 3/3: Claude /propose"
+env -u CLAUDECODE claude -p "/research-suite:propose $reviewed_report" --permission-mode auto > "$run_dir/propose.log" 2>&1 \
+    || fail "propose (claude exited $?, see propose.log)"
+
+git status --porcelain > "$run_dir/git-after-propose.txt"
+if ! cmp -s "$run_dir/git-before.txt" "$run_dir/git-after-propose.txt"; then
+    log "propose changed tracked or untracked files in the repo; nothing was reverted"
+    diff "$run_dir/git-before.txt" "$run_dir/git-after-propose.txt" >> "$summary"
+    fail "propose guard"
+fi
+
+find "$proposals/Unimplemented" -type f -name '*.md' -newer "$run_dir/proposal.marker" > "$run_dir/new-proposals.txt"
+if [ -s "$run_dir/new-proposals.txt" ]; then
+    while read -r written; do
+        log "proposal: $written"
+    done < "$run_dir/new-proposals.txt"
+else
+    log "no proposal written; propose.log says why"
+fi
+
+log "done"

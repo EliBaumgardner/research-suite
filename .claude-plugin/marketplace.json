@@ -1,0 +1,14 @@
+{
+  "name": "research-suite",
+  "owner": {
+    "name": "Eli Baumgardner"
+  },
+  "plugins": [
+    {
+      "name": "research-suite",
+      "source": "./",
+      "description": "Gates, hooks and the research pipeline for C++ projects"
+    }
+  ],
+  "description": "The research suite, as a Claude Code plugin"
+}
